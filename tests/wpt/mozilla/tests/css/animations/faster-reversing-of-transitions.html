@@ -1,0 +1,107 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Transition test: Support for faster reversing of interrupted transitions</title>
+<style>
+  .target {
+    width: 10px;
+    height: 50px;
+    background: red;
+  }
+</style>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+
+<body></body>
+
+<script>
+function createTransitionElement() {
+  let element = document.createElement("div");
+  element.className = "target";
+
+  element.style.transitionProperty = "width";
+  element.style.transitionDuration = "10s";
+  element.style.transitionTimingFunction = "linear";
+
+  document.body.appendChild(element);
+  getComputedStyle(element).width;
+
+  return element;
+}
+
+test(function() {
+  let testBinding = new window.TestBinding();
+  let div = createTransitionElement();
+
+  // Start a transition and allow 30% of it to complete.
+  div.style.width = "110px";
+  getComputedStyle(div).width;
+  testBinding.advanceClock(3000);
+  assert_equals(getComputedStyle(div).getPropertyValue("width"), "40px");
+
+  // Reverse the transition. It should be complete after a proportional
+  // amount of time and not the "transition-duration" set in the style.
+  div.style.width = "10px";
+  getComputedStyle(div).width;
+  testBinding.advanceClock(3000);
+  assert_equals(getComputedStyle(div).getPropertyValue("width"), "10px");
+
+  document.body.removeChild(div);
+}, "Reversed transitions are shortened proportionally");
+
+test(function() {
+  let testBinding = new window.TestBinding();
+  let div = createTransitionElement();
+
+  // Start a transition and allow 50% of it to complete.
+  div.style.width = "110px";
+  getComputedStyle(div).width;
+  testBinding.advanceClock(5000);
+  assert_equals(getComputedStyle(div).getPropertyValue("width"), "60px");
+
+  // Reverse the transition.
+  div.style.width = "10px";
+  getComputedStyle(div).width;
+  testBinding.advanceClock(2500);
+  assert_equals(getComputedStyle(div).getPropertyValue("width"), "35px");
+
+  // Reverse the reversed transition.
+  div.style.width = "110px";
+  getComputedStyle(div).width;
+  testBinding.advanceClock(2000);
+  assert_equals(getComputedStyle(div).getPropertyValue("width"), "55px");
+  testBinding.advanceClock(4500);
+  assert_equals(getComputedStyle(div).getPropertyValue("width"), "100px");
+  testBinding.advanceClock(1000);
+  assert_equals(getComputedStyle(div).getPropertyValue("width"), "110px");
+  document.body.removeChild(div);
+}, "Reversed already reversed transitions are shortened proportionally");
+
+test(function() {
+  let testBinding = new window.TestBinding();
+  let div = createTransitionElement();
+
+  // Start a transition and allow most of it to complete.
+  div.style.width = "110px";
+  getComputedStyle(div).width;
+  testBinding.advanceClock(9000);
+  assert_equals(getComputedStyle(div).getPropertyValue("width"), "100px");
+
+  // Start a new transition that explicitly isn't a reversal. This should
+  // take the entire 10 seconds.
+  div.style.width = "0px";
+  getComputedStyle(div).width;
+
+  testBinding.advanceClock(2000);
+  getComputedStyle(div).width;
+  assert_approx_equals(div.clientWidth, 80, 2);
+
+  testBinding.advanceClock(6000);
+  getComputedStyle(div).width;
+  assert_approx_equals(div.clientWidth, 20, 2);
+
+  testBinding.advanceClock(2000);
+  assert_equals(getComputedStyle(div).getPropertyValue("width"), "0px");
+
+  document.body.removeChild(div);
+}, "Non-reversed transition changes use the full transition-duration");
+</script>
